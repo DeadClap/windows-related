@@ -4,10 +4,14 @@ $topLevelDomain = "com"      # Replace with your actual top-level domain
 $domain = "$domainName.$topLevelDomain"
 $ouPath = "OU=Accounts,DC=$domainName,DC=$topLevelDomain"  # OU path for Accounts
 $groupsOUPath = "OU=Groups,DC=$domainName,DC=$topLevelDomain"  # OU path for Groups
+$outfilePath = "C:\Path\To\Your\File.txt"  # Change the file path as needed
 
-# Function to get sub-OUs under the "Accounts" OU but exclude the Accounts OU itself
+# Function to get sub-OUs under the "Accounts" OU but exclude "Accounts" and "Employees" OUs
 function Get-SubOUsInAccountsOU {
-    $subOUs = Get-ADOrganizationalUnit -Filter * -SearchBase $ouPath | Where-Object { $_.DistinguishedName -ne "OU=Accounts,DC=$domainName,DC=$topLevelDomain" }
+    $subOUs = Get-ADOrganizationalUnit -Filter * -SearchBase $ouPath | Where-Object {
+        $_.DistinguishedName -ne "OU=Accounts,DC=$domainName,DC=$topLevelDomain" -and
+        $_.DistinguishedName -ne "OU=Employees,OU=Accounts,DC=$domainName,DC=$topLevelDomain"
+    }
     return $subOUs
 }
 
@@ -83,7 +87,7 @@ function Create-NewADUser {
 
         # Output the service name and password to a text file
         $username = "svc-$serviceName"
-        Write-Output "$username - $password" | Out-File -Append -FilePath "C:\Path\To\Your\File.txt"  # Change the file path as needed
+        Write-Output "$username - $password" | Out-File -Append -FilePath $outfilePath
 
         # Create the new Service Account user
         New-ADUser -Name $serviceName -SamAccountName $username `
@@ -111,7 +115,7 @@ function Create-NewADUser {
             $username = "$firstName$middleInitial$lastName"
         }
 
-        Write-Output "$username - $password" | Out-File -Append -FilePath "C:\Path\To\Your\File.txt"  # Change the file path as needed
+        Write-Output "$username - $password" | Out-File -Append -FilePath $outfilePath
 
         # Construct the display name
         if (-not [string]::IsNullOrWhiteSpace($middleInitial)) {
@@ -163,7 +167,7 @@ function Reset-ADUserPassword {
     Write-Host "Generated new random password: $newPassword"
 
     Set-ADAccountPassword -Identity $username -NewPassword (ConvertTo-SecureString $newPassword -AsPlainText -Force) -Reset
-    Write-Output "$username - $newPassword" | Out-File -Append -FilePath "C:\Path\To\Your\File.txt"  # Change the file path as needed
+    Write-Output "$username - $newPassword" | Out-File -Append -FilePath $outfilePath
     Write-Host "Password for account $username has been reset successfully."
 }
 
