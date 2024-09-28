@@ -1,7 +1,12 @@
+# Define domain and OU path variables
+$domainName = "yourdomain"  # Replace with your actual domain name
+$topLevelDomain = "com"      # Replace with your actual top-level domain
+$domain = "$domainName.$topLevelDomain"
+$ouPath = "OU=Accounts,DC=$domainName,DC=$topLevelDomain"  # OU path for Accounts
+
 # Function to get sub-OUs under the "Accounts" OU but exclude the Accounts OU itself
 function Get-SubOUsInAccountsOU {
-    $ouPath = "OU=Accounts,DC=yourdomain,DC=com"  # Replace with your domain's base path
-    $subOUs = Get-ADOrganizationalUnit -Filter * -SearchBase $ouPath | Where-Object { $_.DistinguishedName -ne "OU=Accounts,DC=yourdomain,DC=com" }
+    $subOUs = Get-ADOrganizationalUnit -Filter * -SearchBase $ouPath | Where-Object { $_.DistinguishedName -ne "OU=Accounts,DC=$domainName,DC=$topLevelDomain" }
     return $subOUs
 }
 
@@ -30,7 +35,17 @@ function Create-NewADUser {
     
     # Generate a random password
     $password = [System.Web.Security.Membership]::GeneratePassword(12, 2)
-    Write-Output "$firstName $lastName: $password" | Out-File -Append -FilePath "C:\Path\To\Your\File.txt"  # Change the file path as needed
+
+    # Output the username and password to a text file
+    $username = ""
+    if (-not [string]::IsNullOrWhiteSpace($middleInitial)) {
+        $username = "$firstName$lastName"
+    } else {
+        $username = "$firstName$lastName"
+    }
+
+    # Change this line to output with a different separator (e.g., hyphen)
+    Write-Output "$username - $password" | Out-File -Append -FilePath "C:\Path\To\Your\File.txt"  # Change the file path as needed
 
     # Construct the display name
     if (-not [string]::IsNullOrWhiteSpace($middleInitial)) {
@@ -41,7 +56,6 @@ function Create-NewADUser {
 
     # Determine username prefix based on OU
     $ouName = ($ouDistinguishedName -split ',')[0] -replace '^OU='
-    $username = ""
 
     switch ($ouName) {
         "Domain Admins" { $username = "da-$firstName$lastName" }
@@ -56,7 +70,7 @@ function Create-NewADUser {
 
     # Create the new AD user
     New-ADUser -Name $displayName -GivenName $firstName -Surname $lastName -SamAccountName $username `
-               -UserPrincipalName "$username@yourdomain.com" -Path $ouDistinguishedName `
+               -UserPrincipalName "$username@$domain" -Path $ouDistinguishedName `
                -AccountPassword (ConvertTo-SecureString $password -AsPlainText -Force) `
                -Enabled $true -PasswordNeverExpires $false -ChangePasswordAtLogon $true
 
