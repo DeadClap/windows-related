@@ -20,6 +20,8 @@ function Get-GroupsInOU {
 # Function to toggle group membership for a user
 function Toggle-GroupMembership {
     $username = Read-Host "Enter the username of the account"
+    if (-not $username) { Show-MainMenu }
+
     $groups = Get-GroupsInOU
 
     Write-Host "Available Groups:"
@@ -30,6 +32,8 @@ function Toggle-GroupMembership {
     }
 
     $groupSelection = Read-Host "Select a group by number to toggle membership"
+    if (-not $groupSelection) { Show-MainMenu }
+    
     $selectedGroup = $groups[$groupSelection - 1]
 
     # Check if user is already a member of the selected group
@@ -57,6 +61,7 @@ function Show-OUMenu {
         $counter++
     }
     $selection = Read-Host "Enter the number corresponding to the OU you want to create accounts in"
+    if (-not $selection) { Show-MainMenu }
     return $subOUs[$selection - 1].DistinguishedName
 }
 
@@ -66,11 +71,13 @@ function Create-NewADUser {
 
     # Determine the type of account being created
     $accountType = Read-Host "Is this a Service Account? (yes/no)"
+    if (-not $accountType) { Show-MainMenu }
 
     if ($accountType -eq "yes") {
         # Collect service name for service accounts
         $serviceName = Read-Host "Enter Service Name"
-        
+        if (-not $serviceName) { Show-MainMenu }
+
         # Generate a random password
         $password = [System.Web.Security.Membership]::GeneratePassword(12, 2)
 
@@ -88,9 +95,12 @@ function Create-NewADUser {
     } else {
         # Collect user information for regular accounts
         $firstName = Read-Host "Enter First Name"
+        if (-not $firstName) { Show-MainMenu }
+
         $middleInitial = Read-Host "Enter Middle Initial (or leave blank)"
         $lastName = Read-Host "Enter Last Name"
-        
+        if (-not $lastName) { Show-MainMenu }
+
         # Generate a random password
         $password = [System.Web.Security.Membership]::GeneratePassword(12, 2)
 
@@ -137,6 +147,8 @@ function Create-NewADUser {
 # Function to unlock an Active Directory user account
 function Unlock-ADUserAccount {
     $username = Read-Host "Enter the username of the account to unlock"
+    if (-not $username) { Show-MainMenu }
+
     Unlock-ADAccount -Identity $username
     Write-Host "Account $username has been unlocked successfully."
 }
@@ -144,6 +156,7 @@ function Unlock-ADUserAccount {
 # Function to reset the password of an Active Directory user account
 function Reset-ADUserPassword {
     $username = Read-Host "Enter the username of the account to reset the password"
+    if (-not $username) { Show-MainMenu }
     
     # Generate a random password
     $newPassword = [System.Web.Security.Membership]::GeneratePassword(12, 2)
@@ -162,15 +175,17 @@ function Show-MainMenu {
     Write-Host "3. Reset AD User Password"
     Write-Host "4. Toggle Group Membership"
     $selection = Read-Host "Enter your choice"
+    
+    if (-not $selection) { Show-MainMenu }
 
     switch ($selection) {
         "1" { Create-NewADUser }
         "2" { Unlock-ADUserAccount }
         "3" { Reset-ADUserPassword }
         "4" { Toggle-GroupMembership }
-        default { Write-Host "Invalid selection. Please try again." }
+        default { Write-Host "Invalid selection. Please try again."; Show-MainMenu }
     }
 }
 
-# Call the main menu function
+# Start the main menu
 Show-MainMenu
