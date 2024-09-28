@@ -8,9 +8,15 @@ $outfilePath = "C:\Path\To\PasswordFile.txt"
 # Function to generate a random password
 function Generate-RandomPassword {
     $length = 12
-    $chars = [char[]]@('a'..'z' + 'A'..'Z' + '0'..'9' + '!@#$%^&*()-_=+')
-    $passwordChars = -join ((1..$length) | ForEach-Object { $chars[(Get-Random -Minimum 0 -Maximum $chars.Length)] })
-    return $passwordChars
+    $possibleChars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()-_=+"
+    $password = ""
+
+    for ($i = 0; $i -lt $length; $i++) {
+        $randomIndex = Get-Random -Minimum 0 -Maximum $possibleChars.Length
+        $password += $possibleChars[$randomIndex]
+    }
+
+    return $password
 }
 
 # Function to get sub-OUs under the "Accounts" OU but exclude "Accounts" and "Employees" OUs
@@ -201,9 +207,9 @@ function Show-GroupMenu {
     if ($choice -match '^\d+$' -and $choice -ge 1 -and $choice -le $groups.Count) {
         return $groups[$choice - 1].Name
     } else {
-        Show-MainMenu
+        return $null
     }
 }
 
-# Start the main menu
+# Start the script
 Show-MainMenu
