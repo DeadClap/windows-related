@@ -2,6 +2,7 @@
 $domainName = "yourdomain"
 $topLevelDomain = "com"
 $ouPath = "OU=Accounts,DC=$domainName,DC=$topLevelDomain"
+$groupOuPath = "OU=Groups,DC=$domainName,DC=$topLevelDomain"
 $outfilePath = "C:\Path\To\PasswordFile.txt"
 
 # Function to generate a random password
@@ -19,6 +20,12 @@ function Get-SubOUsInAccountsOU {
         $_.DistinguishedName -ne "OU=Employees,OU=Accounts,DC=$domainName,DC=$topLevelDomain"
     }
     return $subOUs
+}
+
+# Function to get groups from the Groups OU and its sub-OUs
+function Get-GroupsInGroupsOU {
+    $groups = Get-ADGroup -Filter * -SearchBase $groupOuPath
+    return $groups
 }
 
 # Function to create a new Active Directory user
@@ -119,20 +126,24 @@ function Toggle-GroupMembership {
     $username = Read-Host "Enter the username to manage group membership"
     $user = Get-ADUser -Identity $username
     if ($user) {
-        $groupName = Read-Host "Enter the group name (from Groups OU) to toggle membership"
-        $group = Get-ADGroup -Filter { Name -eq $groupName }
+        $groupName = Show-GroupMenu
+        if ($groupName) {
+            $group = Get-ADGroup -Filter { Name -eq $groupName }
 
-        if ($group) {
-            $isMember = Get-ADGroupMember -Identity $group | Where-Object { $_.SamAccountName -eq $username }
-            if ($isMember) {
-                Remove-ADGroupMember -Identity $group -Members $user -Confirm:$false
-                Write-Host "$username removed from $groupName."
+            if ($group) {
+                $isMember = Get-ADGroupMember -Identity $group | Where-Object { $_.SamAccountName -eq $username }
+                if ($isMember) {
+                    Remove-ADGroupMember -Identity $group -Members $user -Confirm:$false
+                    Write-Host "$username removed from $groupName."
+                } else {
+                    Add-ADGroupMember -Identity $group -Members $user -Confirm:$false
+                    Write-Host "$username added to $groupName."
+                }
             } else {
-                Add-ADGroupMember -Identity $group -Members $user -Confirm:$false
-                Write-Host "$username added to $groupName."
+                Write-Host "Group $groupName not found!"
             }
         } else {
-            Write-Host "Group $groupName not found!"
+            Show-MainMenu
         }
     } else {
         Write-Host "User $username not found!"
@@ -172,6 +183,23 @@ function Show-OUMenu {
     $choice = Read-Host "Select the OU by number"
     if ($choice -match '^\d+$' -and $choice -ge 1 -and $choice -le $ous.Count) {
         return $ous[$choice - 1].DistinguishedName
+    } else {
+        Show-MainMenu
+    }
+}
+
+# Function to show the group selection menu from Groups OU and sub-OUs
+function Show-GroupMenu {
+    $groups = Get-GroupsInGroupsOU
+    $i = 1
+    foreach ($group in $groups) {
+        Write-Host "$i. $($group.Name)"
+        $i++
+    }
+
+    $choice = Read-Host "Select the Group by number"
+    if ($choice -match '^\d+$' -and $choice -ge 1 -and $choice -le $groups.Count) {
+        return $groups[$choice - 1].Name
     } else {
         Show-MainMenu
     }
