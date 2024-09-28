@@ -1,109 +1,67 @@
-# Import Active Directory module
-Import-Module ActiveDirectory
-
-# Function to generate a random password
-function Generate-RandomPassword {
-    $length = 12
-    $chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()"
-    $password = -join ((65..90) + (97..122) + (48..57) + 33..38 | Get-Random -Count $length | ForEach-Object { [char]$_ })
-    return $password
-}
-
-# Function to get sub-OUs under the "Accounts" OU
+# Function to get sub-OUs under the "Accounts" OU but exclude the Accounts OU itself
 function Get-SubOUsInAccountsOU {
     $ouPath = "OU=Accounts,DC=yourdomain,DC=com"  # Replace with your domain's base path
-    $subOUs = Get-ADOrganizationalUnit -Filter * -SearchBase $ouPath | Where-Object { $_.DistinguishedName -notlike "*Accounts,DC=yourdomain,DC=com" }
+    $subOUs = Get-ADOrganizationalUnit -Filter * -SearchBase $ouPath | Where-Object { $_.DistinguishedName -ne "OU=Accounts,DC=yourdomain,DC=com" }
     return $subOUs
 }
 
-# Function to display a menu of sub-OUs and allow selection
+# Function to extract and display the OU names in a readable format
 function Show-OUMenu {
     $subOUs = Get-SubOUsInAccountsOU
     $counter = 1
     foreach ($ou in $subOUs) {
-        Write-Host "$counter. $($ou.DistinguishedName)"
+        # Extract just the OU name (everything after "OU=" and before the next comma)
+        $ouName = ($ou.DistinguishedName -split ',')[0] -replace '^OU='
+        Write-Host "$counter. $ouName"
         $counter++
     }
     $selection = Read-Host "Enter the number corresponding to the OU you want to create accounts in"
     return $subOUs[$selection - 1].DistinguishedName
 }
 
-# Function to add a prefix to usernames based on the OU
-function Add-PrefixBasedOnOU($ouDistinguishedName, $username) {
-    switch -regex ($ouDistinguishedName) {
-        ".*Domain Admins.*"    { return "da-" + $username }
-        ".*Server Users.*"     { return "su-" + $username }
-        ".*Service Accounts.*" { return "svc-" + $username }
-        ".*Workstation Admins.*" { return "wsadm-" + $username }
-        ".*Employees.*"        { return $username }  # No prefix for Employees and its sub-OUs
-        default { return $username }  # No prefix if no matching OU
-    }
-}
+# Function to create a new Active Directory user
+function Create-NewADUser {
+    $ouDistinguishedName = Show-OUMenu
 
-# Get selected OU
-$selectedOU = Show-OUMenu
+    # Collect user information
+    $firstName = Read-Host "Enter First Name"
+    $middleInitial = Read-Host "Enter Middle Initial (or leave blank)"
+    $lastName = Read-Host "Enter Last Name"
+    
+    # Generate a random password
+    $password = [System.Web.Security.Membership]::GeneratePassword(12, 2)
+    Write-Output "$firstName $lastName: $password" | Out-File -Append -FilePath "C:\Path\To\Your\File.txt"  # Change the file path as needed
 
-# Output file path to store the username:password entries
-$outputFile = "C:\Users\Public\user_accounts.txt"  # Specify the path where the file will be saved
-Clear-Content $outputFile -ErrorAction SilentlyContinue  # Clear the file if it already exists
-
-# Loop to create multiple accounts
-$numberOfAccounts = Read-Host "How many accounts do you want to create?"
-for ($i = 1; $i -le $numberOfAccounts; $i++) {
-    $firstName = Read-Host "Enter First Name for User $i"
-    $middleInitial = Read-Host "Enter Middle Initial for User $i (Press Enter to skip)"
-    $lastName = Read-Host "Enter Last Name for User $i"
-
-    # Generate username based on whether middle initial is provided
-    if ($middleInitial) {
-        $username = $firstName.Substring(0, 1) + $middleInitial.Substring(0, 1) + $lastName
+    # Construct the display name
+    if (-not [string]::IsNullOrWhiteSpace($middleInitial)) {
         $displayName = "$lastName, $firstName $middleInitial"
     } else {
-        $username = $firstName.Substring(0, 1) + $lastName
         $displayName = "$lastName, $firstName"
     }
 
-    # Add prefix to username based on the selected OU
-    $prefixedUsername = Add-PrefixBasedOnOU $selectedOU $username
+    # Determine username prefix based on OU
+    $ouName = ($ouDistinguishedName -split ',')[0] -replace '^OU='
+    $username = ""
 
-    # Generate a random password
-    $password = Generate-RandomPassword
-    Write-Host "Generated Password for $prefixedUsername: $password"
-
-    # Create user in selected OU based on presence of middle initial
-    if ($middleInitial) {
-        # Create user with middle initial
-        New-ADUser `
-            -Name $displayName `
-            -GivenName $firstName `
-            -Initials $middleInitial `
-            -Surname $lastName `
-            -SamAccountName $prefixedUsername `
-            -UserPrincipalName "$prefixedUsername@yourdomain.com" `
-            -Path $selectedOU `
-            -AccountPassword (ConvertTo-SecureString $password -AsPlainText -Force) `
-            -Enabled $true
-    } else {
-        # Create user without middle initial
-        New-ADUser `
-            -Name $displayName `
-            -GivenName $firstName `
-            -Surname $lastName `
-            -SamAccountName $prefixedUsername `
-            -UserPrincipalName "$prefixedUsername@yourdomain.com" `
-            -Path $selectedOU `
-            -AccountPassword (ConvertTo-SecureString $password -AsPlainText -Force) `
-            -Enabled $true
+    switch ($ouName) {
+        "Domain Admins" { $username = "da-$firstName$lastName" }
+        "Server Users" { $username = "su-$firstName$lastName" }
+        "Service Accounts" { $username = "svc-$firstName$lastName" }
+        "Workstation Admins" { $username = "wsadm-$firstName$lastName" }
+        "Contractor" { $username = "$firstName$lastName" }
+        "Full Time Employee" { $username = "$firstName$lastName" }
+        "Vendor" { $username = "$firstName$lastName" }
+        default { $username = "$firstName$lastName" }  # No prefix for unknown OUs
     }
 
-    # Set the user to reset password on first logon
-    Set-ADUser $prefixedUsername -ChangePasswordAtLogon $true
+    # Create the new AD user
+    New-ADUser -Name $displayName -GivenName $firstName -Surname $lastName -SamAccountName $username `
+               -UserPrincipalName "$username@yourdomain.com" -Path $ouDistinguishedName `
+               -AccountPassword (ConvertTo-SecureString $password -AsPlainText -Force) `
+               -Enabled $true -PasswordNeverExpires $false -ChangePasswordAtLogon $true
 
-    # Append the username and password to the output file
-    Add-Content -Path $outputFile -Value "$prefixedUsername:$password"
-
-    Write-Host "User $prefixedUsername created successfully in $selectedOU"
+    Write-Host "User $displayName created successfully with username: $username"
 }
 
-Write-Host "All accounts created successfully!"
-Write-Host "Usernames and passwords have been saved to: $outputFile"
+# Call the function to create a new AD user
+Create-NewADUser
