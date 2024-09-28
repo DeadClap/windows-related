@@ -46,7 +46,7 @@ function Create-NewADUser {
 
         # Output the service name and password to a text file
         $username = "svc-$serviceName"
-        Write-Output "$username:$password" | Out-File -Append -FilePath $outfilePath
+        Write-Output "$username - $password" | Out-File -Append -FilePath $outfilePath
 
         # Create the new Service Account user
         New-ADUser -Name $serviceName -SamAccountName $username `
@@ -77,7 +77,7 @@ function Create-NewADUser {
         }
 
         # Output the username and password to a text file
-        Write-Output "$username:$password" | Out-File -Append -FilePath $outfilePath
+        Write-Output "$username - $password" | Out-File -Append -FilePath $outfilePath
 
         # Determine username prefix based on OU
         $ouName = ($ouDistinguishedName -split ',')[0] -replace '^OU='
@@ -107,7 +107,7 @@ function Reset-ADUserPassword {
     if ($user) {
         $newPassword = Generate-RandomPassword
         Set-ADAccountPassword -Identity $user -NewPassword (ConvertTo-SecureString $newPassword -AsPlainText -Force)
-        Write-Output "$username:$newPassword" | Out-File -Append -FilePath $outfilePath
+        Write-Output "$username - $newPassword" | Out-File -Append -FilePath $outfilePath
         Write-Host "Password for $username has been reset. New password: $newPassword"
     } else {
         Write-Host "User not found!"
